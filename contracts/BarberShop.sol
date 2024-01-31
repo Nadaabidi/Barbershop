@@ -32,6 +32,7 @@ contract BarberShop {
     mapping(address => Client) public clients;
     mapping(address => Staff) public staff;
     mapping(uint256 => Service) public services;
+    mapping(address => address[]) ownerToClients;
 
     event ClientAdded(address indexed clientAddress, string name, uint256 phoneNumber);
     event StaffAdded(address indexed staffAddress, string name, address employeeId);
@@ -42,8 +43,9 @@ contract BarberShop {
     event ServiceAdded(uint256 indexed serviceId, string name, address staffId);
     event AppointmentBooked(address indexed clientAddress, uint256 serviceId, uint256 timestamp);
     event AppointmentPaid(address indexed clientAddress, uint256 serviceId, uint256 amount);
+    event OwnerAdded(address indexed newOwner);
 
-    modifier onlyOwner() {
+      modifier onlyOwner() {
         require(isOwner(msg.sender), "You are not an owner");
         _;
     }
@@ -51,8 +53,7 @@ contract BarberShop {
       constructor() {
         owners.push(msg.sender); // The deployer is the initial owner
     }
-
-       function isOwner(address _address) public view returns (bool) {
+    function isOwner(address _address) public view returns (bool) {
         for (uint256 i = 0; i < owners.length; i++) {
             if (owners[i] == _address) {
                 return true;
@@ -61,17 +62,38 @@ contract BarberShop {
         return false;
     }
 
-       function addOwner(address _newOwner) external onlyOwner {
+    function addOwner(address _newOwner) external onlyOwner {
         require(_newOwner != address(0), "Invalid owner address");
         owners.push(_newOwner);
+        emit OwnerAdded(_newOwner);
+    }
+
+    function getOwners() external view returns (address[] memory) {
+        return owners;
     }
 
  function addClient(address _clientAddress, string memory _name, uint256 _phoneNumber) external onlyOwner {
     Client storage newClient = clients[_clientAddress];
     newClient.name = _name;
     newClient.phoneNumber = _phoneNumber;
+    ownerToClients[msg.sender].push(_clientAddress); //// Add client to the owner's list of clients
     emit ClientAdded(_clientAddress, _name, _phoneNumber);
 }
+
+function getClients() external view returns (string[] memory, uint256[] memory) {
+    address[] memory clientAddresses = ownerToClients[msg.sender];
+    string[] memory names = new string[](clientAddresses.length);
+    uint256[] memory phoneNumbers = new uint256[](clientAddresses.length);
+
+    for (uint256 i = 0; i < clientAddresses.length; i++) {
+        Client storage client = clients[clientAddresses[i]];
+        names[i] = client.name;
+        phoneNumbers[i] = client.phoneNumber;
+    }
+
+    return (names, phoneNumbers);
+}
+
 
 
     function updateClient(address _clientAddress, string memory _newName, uint256 _newPhoneNumber) external onlyOwner {
