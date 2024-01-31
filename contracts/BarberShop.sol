@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity >=0.4.22 <0.9.0;
 
 contract BarberShop {
-    address public owner;
+    address[] public owners; // List of authorized owners
 
     enum AppointmentState { Pending, Booked, Paid }
 
@@ -44,12 +44,26 @@ contract BarberShop {
     event AppointmentPaid(address indexed clientAddress, uint256 serviceId, uint256 amount);
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "You are not the owner");
+        require(isOwner(msg.sender), "You are not an owner");
         _;
     }
 
-    constructor() {
-        owner = msg.sender;
+      constructor() {
+        owners.push(msg.sender); // The deployer is the initial owner
+    }
+
+       function isOwner(address _address) public view returns (bool) {
+        for (uint256 i = 0; i < owners.length; i++) {
+            if (owners[i] == _address) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+       function addOwner(address _newOwner) external onlyOwner {
+        require(_newOwner != address(0), "Invalid owner address");
+        owners.push(_newOwner);
     }
 
  function addClient(address _clientAddress, string memory _name, uint256 _phoneNumber) external onlyOwner {
@@ -103,31 +117,31 @@ contract BarberShop {
         return (staff[_staffId].name, staff[_staffId].staffId);
     }
 
-    function bookAppointment(uint256 _serviceId) external {
-        require(clients[msg.sender].phoneNumber != 0, "Client not registered");
-        require(services[_serviceId].staffId != address(0), "Service not found");
+     function bookAppointment(uint256 _serviceId) external {
+         require(clients[msg.sender].phoneNumber != 0, "Client not registered");
+           require(services[_serviceId].staffId != address(0), "Service not found");
 
-        clients[msg.sender].appointments[_serviceId] = Appointment(_serviceId, block.timestamp, AppointmentState.Booked);
-        emit AppointmentBooked(msg.sender, _serviceId, block.timestamp);
-    }
+         clients[msg.sender].appointments[_serviceId] = Appointment(_serviceId, block.timestamp, AppointmentState.Booked);
+         emit AppointmentBooked(msg.sender, _serviceId, block.timestamp);
+     }
 
-    function payForAppointment(uint256 _serviceId) external payable {
-        require(clients[msg.sender].phoneNumber != 0, "Client not registered");
-        Appointment storage appointment = clients[msg.sender].appointments[_serviceId];
-        require(appointment.timestamp != 0, "No appointment found");
-        require(appointment.state == AppointmentState.Booked, "Appointment already paid");
+     function payForAppointment(uint256 _serviceId) external payable {
+         require(clients[msg.sender].phoneNumber != 0, "Client not registered");
+         Appointment storage appointment = clients[msg.sender].appointments[_serviceId];
+         require(appointment.timestamp != 0, "No appointment found");
+         require(appointment.state == AppointmentState.Booked, "Appointment already paid");
 
-        uint256 amount = msg.value;
-        uint256 price = staff[services[_serviceId].staffId].services[_serviceId];
+         uint256 amount = msg.value;
+         uint256 price = staff[services[_serviceId].staffId].services[_serviceId];
 
-        require(amount >= price, "Insufficient funds");
+         require(amount >= price, "Insufficient funds");
 
-        // Mark the appointment as paid
-        appointment.state = AppointmentState.Paid;
+         // Mark the appointment as paid
+         appointment.state = AppointmentState.Paid;
 
-        // Transfer the payment to the staff
-        payable(owner).transfer(price);
+         // Transfer the payment to the staff
+         payable(staff[services[_serviceId].staffId].staffId).transfer(price);
 
-        emit AppointmentPaid(msg.sender, _serviceId, price);
-    }
+         emit AppointmentPaid(msg.sender, _serviceId, price);
+     }
 }
